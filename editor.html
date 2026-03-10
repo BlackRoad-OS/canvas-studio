@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Studio Editor</title>
+    <style>
+        :root {
+            --black: #000;
+            --panel: #111;
+            --panel2: #1a1a1a;
+            --border: rgba(255,255,255,0.1);
+            --amber: #F5A623;
+            --pink: #FF1D6C;
+            --blue: #2979FF;
+            --violet: #9C27B0;
+            --white: #fff;
+            --text-dim: rgba(255,255,255,0.55);
+            --ease: cubic-bezier(0.25,0.1,0.25,1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--black);
+            color: var(--white);
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Top Bar ─────────────────────────────────────────────── */
+        #topbar {
+            height: 52px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 10px;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        #topbar .logo {
+            font-size: 18px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--amber), var(--pink), var(--violet));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-right: 6px;
+        }
+
+        #topbar .sep { width: 1px; height: 28px; background: var(--border); margin: 0 4px; }
+
+        .tb-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--white);
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+        .tb-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--border); }
+        .tb-btn.primary { background: var(--pink); border-color: var(--pink); font-weight: 600; }
+        .tb-btn.primary:hover { background: #e0185f; }
+
+        #canvas-name {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--white);
+            font-size: 14px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+            outline: none;
+            min-width: 160px;
+        }
+        #canvas-name:focus { border-color: var(--pink); background: var(--panel2); }
+
+        #topbar .spacer { flex: 1; }
+
+        #undo-redo { display: flex; gap: 2px; }
+
+        /* ── Main Layout ─────────────────────────────────────────── */
+        #workspace {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── Left Toolbar ────────────────────────────────────────── */
+        #toolbar {
+            width: 56px;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 0;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .tool {
+            width: 40px;
+            height: 40px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--white);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .tool:hover { background: rgba(255,255,255,0.08); border-color: var(--border); }
+        .tool.active { background: rgba(255,29,108,0.2); border-color: var(--pink); }
+        .tool[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            left: 48px;
+            background: #222;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 999;
+            pointer-events: none;
+            border: 1px solid var(--border);
+        }
+
+        .tool-sep { width: 32px; height: 1px; background: var(--border); margin: 4px 0; }
+
+        /* ── Canvas Area ─────────────────────────────────────────── */
+        #canvas-area {
+            flex: 1;
+            background: #0a0a0a;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 40px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            position: relative;
+        }
+
+        #canvas-wrap {
+            position: relative;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08);
+            border-radius: 4px;
+        }
+
+        #main-canvas {
+            display: block;
+            cursor: default;
+        }
+
+        /* ── Right Panel ─────────────────────────────────────────── */
+        #rightpanel {
+            width: 240px;
+            background: var(--panel);
+            border-left: 1px solid var(--border);
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .panel-section {
+            border-bottom: 1px solid var(--border);
+            padding: 14px;
+        }
+
+        .panel-section h4 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+        }
+
+        .prop-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .prop-row label {
+            font-size: 12px;
+            color: var(--text-dim);
+            flex-shrink: 0;
+            width: 60px;
+        }
+
+        .prop-input {
+            flex: 1;
+            background: var(--panel2);
+            border: 1px solid var(--border);
+            color: var(--white);
+            padding: 5px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            outline: none;
+        }
+        .prop-input:focus { border-color: var(--pink); }
+
+        .prop-color {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 2px solid var(--border);
+            cursor: pointer;
+            padding: 0;
+            background: transparent;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.15s;
+        }
+        .layer-item:hover { background: rgba(255,255,255,0.05); }
+        .layer-item.selected { background: rgba(255,29,108,0.15); }
+
+        .layer-del {
+            margin-left: auto;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .layer-del:hover { color: var(--pink); background: rgba(255,29,108,0.1); }
+
+        /* ── Templates Overlay ───────────────────────────────────── */
+        #templates-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+        }
+        #templates-overlay.open { display: flex; }
+
+        #templates-modal {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px;
+            width: min(900px, 95vw);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        #templates-modal h2 { font-size: 28px; margin-bottom: 24px; }
+
+        .tpl-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 14px;
+        }
+
+        .tpl-card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s var(--ease);
+        }
+        .tpl-card:hover { border-color: var(--pink); transform: translateY(-4px); }
+
+        .tpl-preview {
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        .tpl-label {
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            background: var(--panel2);
+        }
+        .tpl-label span { display: block; font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+        .modal-close {
+            float: right;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 24px;
+            cursor: pointer;
+            margin-top: -4px;
+        }
+        .modal-close:hover { color: var(--white); }
+
+        /* ── Text Editor Overlay ─────────────────────────────────── */
+        #text-editor {
+            display: none;
+            position: fixed;
+            background: var(--panel);
+            border: 1px solid var(--pink);
+            border-radius: 10px;
+            padding: 10px;
+            z-index: 200;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+        }
+        #text-editor.open { display: flex; }
+
+        #text-editor textarea {
+            background: var(--panel2);
+            border: 1px solid var(--border);
+            color: var(--white);
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: both;
+            min-width: 220px;
+            min-height: 70px;
+            outline: none;
+            font-family: inherit;
+        }
+        #text-editor textarea:focus { border-color: var(--pink); }
+
+        #text-editor .row { display: flex; gap: 6px; align-items: center; }
+
+        select.prop-input { cursor: pointer; }
+
+        /* ── Status Bar ──────────────────────────────────────────── */
+        #statusbar {
+            height: 28px;
+            background: var(--panel);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            gap: 16px;
+            font-size: 11px;
+            color: var(--text-dim);
+            flex-shrink: 0;
+        }
+
+        /* ── Scrollbar ───────────────────────────────────────────── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+        /* ── Responsive ──────────────────────────────────────────── */
+        @media (max-width: 700px) {
+            #rightpanel { display: none; }
+            #toolbar { width: 44px; }
+            .tool { width: 34px; height: 34px; font-size: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div id="topbar">
+    <span class="logo">🎨 Canvas Studio</span>
+    <div class="sep"></div>
+    <input id="canvas-name" type="text" value="Untitled Design" maxlength="60">
+    <div class="sep"></div>
+    <div id="undo-redo">
+        <button class="tb-btn" id="btn-undo" title="Undo (Ctrl+Z)">↩ Undo</button>
+        <button class="tb-btn" id="btn-redo" title="Redo (Ctrl+Y)">↪ Redo</button>
+    </div>
+    <div class="sep"></div>
+    <button class="tb-btn" id="btn-templates">📐 Templates</button>
+    <button class="tb-btn" id="btn-size">📏 Size</button>
+    <div class="spacer"></div>
+    <button class="tb-btn" id="btn-clear">🗑 Clear</button>
+    <button class="tb-btn primary" id="btn-download">⬇ Download PNG</button>
+</div>
+
+<!-- Workspace -->
+<div id="workspace">
+
+    <!-- Left toolbar -->
+    <div id="toolbar">
+        <button class="tool active" id="tool-select" title="Select  (V)">↖</button>
+        <div class="tool-sep"></div>
+        <button class="tool" id="tool-text" title="Text  (T)">T</button>
+        <button class="tool" id="tool-rect" title="Rectangle  (R)">▭</button>
+        <button class="tool" id="tool-ellipse" title="Ellipse  (E)">◯</button>
+        <button class="tool" id="tool-line" title="Line  (L)">╱</button>
+        <div class="tool-sep"></div>
+        <button class="tool" id="tool-image" title="Upload Image  (I)">🖼</button>
+        <label class="tool" id="tool-bg" title="Background Color" style="cursor:pointer">
+            🎨
+            <input type="color" id="bg-color-input" style="position:absolute;opacity:0;width:0;height:0">
+        </label>
+    </div>
+
+    <!-- Canvas area -->
+    <div id="canvas-area">
+        <div id="canvas-wrap">
+            <canvas id="main-canvas" width="1080" height="1080"></canvas>
+        </div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="rightpanel">
+
+        <div class="panel-section" id="prop-section" style="display:none">
+            <h4>Properties</h4>
+            <div id="prop-fill-row" class="prop-row">
+                <label>Fill</label>
+                <input type="color" class="prop-color" id="prop-fill" value="#FF1D6C">
+            </div>
+            <div id="prop-stroke-row" class="prop-row">
+                <label>Stroke</label>
+                <input type="color" class="prop-color" id="prop-stroke" value="#ffffff">
+                <input type="number" class="prop-input" id="prop-stroke-w" value="0" min="0" max="20" style="width:50px">
+            </div>
+            <div id="prop-text-rows" style="display:none">
+                <div class="prop-row">
+                    <label>Font</label>
+                    <select class="prop-input" id="prop-font">
+                        <option>sans-serif</option>
+                        <option>serif</option>
+                        <option>monospace</option>
+                        <option>cursive</option>
+                        <option>fantasy</option>
+                    </select>
+                </div>
+                <div class="prop-row">
+                    <label>Size</label>
+                    <input type="number" class="prop-input" id="prop-fontsize" value="48" min="6" max="400">
+                </div>
+                <div class="prop-row">
+                    <label>Bold</label>
+                    <input type="checkbox" id="prop-bold">
+                </div>
+                <div class="prop-row">
+                    <label>Italic</label>
+                    <input type="checkbox" id="prop-italic">
+                </div>
+            </div>
+            <div class="prop-row">
+                <label>X</label>
+                <input type="number" class="prop-input" id="prop-x">
+                <label>Y</label>
+                <input type="number" class="prop-input" id="prop-y">
+            </div>
+            <div class="prop-row">
+                <label>W</label>
+                <input type="number" class="prop-input" id="prop-w" min="1">
+                <label>H</label>
+                <input type="number" class="prop-input" id="prop-h" min="1">
+            </div>
+            <div class="prop-row">
+                <label>Opacity</label>
+                <input type="range" class="prop-input" id="prop-opacity" min="0" max="1" step="0.05" value="1">
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h4>Canvas</h4>
+            <div class="prop-row">
+                <label>BG</label>
+                <input type="color" class="prop-color" id="prop-bg" value="#ffffff">
+            </div>
+            <div class="prop-row">
+                <label>W</label>
+                <input type="number" class="prop-input" id="canvas-w" value="1080" min="100" max="8000">
+                <label>H</label>
+                <input type="number" class="prop-input" id="canvas-h" value="1080" min="100" max="8000">
+            </div>
+            <button class="tb-btn" id="btn-apply-size" style="width:100%;justify-content:center;margin-top:4px">Apply Size</button>
+        </div>
+
+        <div class="panel-section">
+            <h4>Layers</h4>
+            <div id="layers-list"></div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Status Bar -->
+<div id="statusbar">
+    <span id="status-tool">Tool: Select</span>
+    <span id="status-size">1080 × 1080</span>
+    <span id="status-elements">Elements: 0</span>
+    <span id="status-zoom">Zoom: 50%</span>
+</div>
+
+<!-- Templates Modal -->
+<div id="templates-overlay">
+    <div id="templates-modal">
+        <button class="modal-close" id="tpl-close">✕</button>
+        <h2>🎨 Choose a Template</h2>
+        <div class="tpl-grid" id="tpl-grid"></div>
+    </div>
+</div>
+
+<!-- Inline Text Editor -->
+<div id="text-editor">
+    <div class="row">
+        <select class="prop-input" id="te-font" style="flex:1">
+            <option>sans-serif</option><option>serif</option><option>monospace</option><option>cursive</option>
+        </select>
+        <input type="number" class="prop-input" id="te-size" value="72" min="6" max="400" style="width:64px">
+        <input type="color" id="te-color" value="#000000" style="width:32px;height:32px;border-radius:6px;border:2px solid rgba(255,255,255,0.2);cursor:pointer;padding:0">
+    </div>
+    <textarea id="te-text" placeholder="Type here…">Your Text</textarea>
+    <div class="row">
+        <button class="tb-btn primary" id="te-confirm" style="flex:1">✓ Add Text</button>
+        <button class="tb-btn" id="te-cancel">✕</button>
+    </div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="img-file-input" accept="image/*" style="display:none">
+
+<script>
+'use strict';
+
+/* =========================================================
+   CanvasStudio — zero-dependency HTML5 Canvas design editor
+   ========================================================= */
+class CanvasStudio {
+    constructor() {
+        this.canvas = document.getElementById('main-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.elements = [];   // all design elements
+        this.selected = null; // selected element index
+        this.tool = 'select';
+        this.bgColor = '#ffffff';
+        this.undoStack = [];
+        this.redoStack = [];
+        this.drawStart = null;
+        this.dragging = false;
+        this.resizing = false;
+        this.resizeHandle = null;
+        this.dragOffset = { x: 0, y: 0 };
+        this.zoom = 0.5;
+        this._initUI();
+        this._bindEvents();
+        this._applyZoom();
+        this.render();
+        this._checkHash();
+    }
+
+    /* ── Zoom ─────────────────────────────────────────────── */
+    _applyZoom() {
+        const wrap = document.getElementById('canvas-wrap');
+        wrap.style.transform = `scale(${this.zoom})`;
+        wrap.style.transformOrigin = 'center center';
+        document.getElementById('status-zoom').textContent = `Zoom: ${Math.round(this.zoom * 100)}%`;
+    }
+
+    _canvasPos(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    }
+
+    /* ── Rendering ────────────────────────────────────────── */
+    render() {
+        const { ctx, canvas } = this;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Background
+        ctx.fillStyle = this.bgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Elements
+        this.elements.forEach((el, i) => {
+            ctx.save();
+            ctx.globalAlpha = el.opacity ?? 1;
+            this._drawEl(el, i === this.selected);
+            ctx.restore();
+        });
+
+        this._updateLayers();
+        this._updateProps();
+        document.getElementById('status-elements').textContent = `Elements: ${this.elements.length}`;
+    }
+
+    _drawEl(el, sel) {
+        const { ctx } = this;
+
+        if (el.type === 'rect') {
+            ctx.fillStyle = el.fill;
+            ctx.fillRect(el.x, el.y, el.w, el.h);
+            if (el.strokeW > 0) {
+                ctx.strokeStyle = el.stroke;
+                ctx.lineWidth = el.strokeW;
+                ctx.strokeRect(el.x, el.y, el.w, el.h);
+            }
+        } else if (el.type === 'ellipse') {
+            ctx.beginPath();
+            ctx.ellipse(el.x + el.w / 2, el.y + el.h / 2, Math.abs(el.w / 2), Math.abs(el.h / 2), 0, 0, Math.PI * 2);
+            ctx.fillStyle = el.fill;
+            ctx.fill();
+            if (el.strokeW > 0) {
+                ctx.strokeStyle = el.stroke;
+                ctx.lineWidth = el.strokeW;
+                ctx.stroke();
+            }
+        } else if (el.type === 'line') {
+            ctx.beginPath();
+            ctx.moveTo(el.x, el.y);
+            ctx.lineTo(el.x + el.w, el.y + el.h);
+            ctx.strokeStyle = el.fill;
+            ctx.lineWidth = Math.max(el.strokeW || 2, 2);
+            ctx.stroke();
+        } else if (el.type === 'text') {
+            const weight = el.bold ? 'bold' : 'normal';
+            const style = el.italic ? 'italic' : 'normal';
+            ctx.font = `${style} ${weight} ${el.fs}px ${el.ff}`;
+            ctx.fillStyle = el.fill;
+            ctx.fillText(el.text, el.x, el.y + el.fs);
+            // Update width based on measured text
+            const m = ctx.measureText(el.text);
+            el.w = m.width;
+            el.h = el.fs * 1.2;
+        } else if (el.type === 'image' && el._img) {
+            ctx.drawImage(el._img, el.x, el.y, el.w, el.h);
+        }
+
+        // Selection handles
+        if (sel) {
+            const pad = 4;
+            const bx = el.x - pad, by = el.y - pad;
+            const bw = (el.w || 0) + pad * 2, bh = (el.h || 0) + pad * 2;
+            ctx.strokeStyle = '#FF1D6C';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 3]);
+            ctx.strokeRect(bx, by, bw, bh);
+            ctx.setLineDash([]);
+            // Corner handles
+            const hs = 8;
+            [[bx, by], [bx + bw, by], [bx, by + bh], [bx + bw, by + bh]].forEach(([hx, hy]) => {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+                ctx.strokeStyle = '#FF1D6C';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+            });
+        }
+    }
+
+    /* ── Hit testing ──────────────────────────────────────── */
+    _hitTest(x, y) {
+        for (let i = this.elements.length - 1; i >= 0; i--) {
+            const el = this.elements[i];
+            if (x >= el.x && x <= el.x + (el.w || 0) && y >= el.y && y <= el.y + (el.h || 0)) return i;
+        }
+        return -1;
+    }
+
+    _resizeHandleAt(x, y) {
+        if (this.selected === null) return null;
+        const el = this.elements[this.selected];
+        if (!el) return null;
+        const pad = 4, hs = 12;
+        const bx = el.x - pad, by = el.y - pad;
+        const bw = (el.w || 0) + pad * 2, bh = (el.h || 0) + pad * 2;
+        const handles = [
+            { name: 'tl', hx: bx, hy: by },
+            { name: 'tr', hx: bx + bw, hy: by },
+            { name: 'bl', hx: bx, hy: by + bh },
+            { name: 'br', hx: bx + bw, hy: by + bh }
+        ];
+        for (const h of handles) {
+            if (Math.abs(x - h.hx) <= hs / 2 && Math.abs(y - h.hy) <= hs / 2) return h.name;
+        }
+        return null;
+    }
+
+    /* ── Undo / Redo ──────────────────────────────────────── */
+    _snapshot() {
+        this.undoStack.push(JSON.stringify({ elements: this.elements, bgColor: this.bgColor }));
+        if (this.undoStack.length > 80) this.undoStack.shift();
+        this.redoStack = [];
+    }
+
+    _undo() {
+        if (!this.undoStack.length) return;
+        this.redoStack.push(JSON.stringify({ elements: this.elements, bgColor: this.bgColor }));
+        const s = JSON.parse(this.undoStack.pop());
+        this._restore(s);
+    }
+
+    _redo() {
+        if (!this.redoStack.length) return;
+        this.undoStack.push(JSON.stringify({ elements: this.elements, bgColor: this.bgColor }));
+        const s = JSON.parse(this.redoStack.pop());
+        this._restore(s);
+    }
+
+    _restore(s) {
+        this.bgColor = s.bgColor;
+        this.elements = s.elements.map(el => {
+            if (el.type === 'image' && el.src) {
+                const img = new Image();
+                img.onload = () => this.render();
+                img.src = el.src;
+                el._img = img;
+            }
+            return el;
+        });
+        this.selected = null;
+        document.getElementById('prop-bg').value = this.bgColor;
+        this.render();
+    }
+
+    /* ── Mouse Events ─────────────────────────────────────── */
+    _onMouseDown(e) {
+        const pos = this._canvasPos(e);
+        const { x, y } = pos;
+
+        if (this.tool === 'select') {
+            const handle = this._resizeHandleAt(x, y);
+            if (handle) {
+                this._snapshot();
+                this.resizing = true;
+                this.resizeHandle = handle;
+                const el = this.elements[this.selected];
+                this.resizeOrigin = { x, y, ex: el.x, ey: el.y, ew: el.w, eh: el.h };
+                return;
+            }
+            const hit = this._hitTest(x, y);
+            if (hit >= 0) {
+                this._snapshot();
+                this.selected = hit;
+                this.dragging = true;
+                const el = this.elements[hit];
+                this.dragOffset = { x: x - el.x, y: y - el.y };
+            } else {
+                this.selected = null;
+            }
+            this.render();
+            return;
+        }
+
+        if (['rect', 'ellipse', 'line'].includes(this.tool)) {
+            this._snapshot();
+            this.drawStart = { x, y };
+        }
+
+        if (this.tool === 'text') {
+            this._openTextEditor(x, y, e);
+        }
+    }
+
+    _onMouseMove(e) {
+        const { x, y } = this._canvasPos(e);
+        const canvas = this.canvas;
+
+        if (this.resizing && this.selected !== null) {
+            const el = this.elements[this.selected];
+            const o = this.resizeOrigin;
+            const dx = x - o.x, dy = y - o.y;
+            if (this.resizeHandle === 'br') {
+                el.w = Math.max(10, o.ew + dx);
+                el.h = Math.max(10, o.eh + dy);
+            } else if (this.resizeHandle === 'tr') {
+                el.w = Math.max(10, o.ew + dx);
+                el.y = o.ey + dy;
+                el.h = Math.max(10, o.eh - dy);
+            } else if (this.resizeHandle === 'bl') {
+                el.x = o.ex + dx;
+                el.w = Math.max(10, o.ew - dx);
+                el.h = Math.max(10, o.eh + dy);
+            } else if (this.resizeHandle === 'tl') {
+                el.x = o.ex + dx;
+                el.y = o.ey + dy;
+                el.w = Math.max(10, o.ew - dx);
+                el.h = Math.max(10, o.eh - dy);
+            }
+            canvas.style.cursor = 'nwse-resize';
+            this.render();
+            return;
+        }
+
+        if (this.dragging && this.selected !== null) {
+            const el = this.elements[this.selected];
+            el.x = x - this.dragOffset.x;
+            el.y = y - this.dragOffset.y;
+            canvas.style.cursor = 'grabbing';
+            this.render();
+            return;
+        }
+
+        if (this.drawStart && ['rect', 'ellipse', 'line'].includes(this.tool)) {
+            // Live preview
+            const preview = {
+                type: this.tool === 'line' ? 'line' : this.tool,
+                x: Math.min(x, this.drawStart.x),
+                y: Math.min(y, this.drawStart.y),
+                w: Math.abs(x - this.drawStart.x),
+                h: Math.abs(y - this.drawStart.y),
+                fill: '#FF1D6C',
+                stroke: '#ffffff',
+                strokeW: 0,
+                opacity: 1
+            };
+            if (this.tool === 'line') {
+                preview.x = this.drawStart.x;
+                preview.y = this.drawStart.y;
+                preview.w = x - this.drawStart.x;
+                preview.h = y - this.drawStart.y;
+            }
+            this._previewEl = preview;
+            this.render();
+            this.ctx.save();
+            this.ctx.globalAlpha = 0.7;
+            this._drawEl(preview, false);
+            this.ctx.restore();
+        }
+
+        // Cursor updates
+        if (this.tool === 'select') {
+            const handle = this._resizeHandleAt(x, y);
+            if (handle) { canvas.style.cursor = 'nwse-resize'; return; }
+            const hit = this._hitTest(x, y);
+            canvas.style.cursor = hit >= 0 ? 'grab' : 'default';
+        } else if (this.tool === 'text') {
+            canvas.style.cursor = 'text';
+        } else {
+            canvas.style.cursor = 'crosshair';
+        }
+    }
+
+    _onMouseUp(e) {
+        const { x, y } = this._canvasPos(e);
+
+        if (this.dragging) {
+            this.dragging = false;
+            this.canvas.style.cursor = 'grab';
+            this.render();
+            return;
+        }
+        if (this.resizing) {
+            this.resizing = false;
+            this.resizeHandle = null;
+            this.render();
+            return;
+        }
+
+        if (this.drawStart && ['rect', 'ellipse', 'line'].includes(this.tool)) {
+            const w = Math.abs(x - this.drawStart.x);
+            const h = Math.abs(y - this.drawStart.y);
+            if (w > 4 || h > 4) {
+                let el;
+                if (this.tool === 'line') {
+                    el = { type: 'line', x: this.drawStart.x, y: this.drawStart.y, w: x - this.drawStart.x, h: y - this.drawStart.y, fill: '#FF1D6C', stroke: '#ffffff', strokeW: 2, opacity: 1 };
+                } else {
+                    el = { type: this.tool, x: Math.min(x, this.drawStart.x), y: Math.min(y, this.drawStart.y), w, h, fill: '#FF1D6C', stroke: '#ffffff', strokeW: 0, opacity: 1 };
+                }
+                this.elements.push(el);
+                this.selected = this.elements.length - 1;
+                this.render();
+            }
+            this.drawStart = null;
+        }
+    }
+
+    /* ── Text Editor ──────────────────────────────────────── */
+    _openTextEditor(canvasX, canvasY, evt) {
+        const te = document.getElementById('text-editor');
+        te.classList.add('open');
+        te.style.left = Math.min(evt.clientX, window.innerWidth - 280) + 'px';
+        te.style.top = Math.min(evt.clientY, window.innerHeight - 200) + 'px';
+        this._pendingTextPos = { x: canvasX, y: canvasY };
+        document.getElementById('te-text').value = 'Your Text';
+        document.getElementById('te-text').select();
+        document.getElementById('te-text').focus();
+    }
+
+    _confirmText() {
+        const text = document.getElementById('te-text').value.trim();
+        if (!text) return this._cancelText();
+        const fs = parseInt(document.getElementById('te-size').value) || 72;
+        const ff = document.getElementById('te-font').value;
+        const fill = document.getElementById('te-color').value;
+        this._snapshot();
+        const el = { type: 'text', x: this._pendingTextPos.x, y: this._pendingTextPos.y, w: 200, h: fs * 1.2, text, fs, ff, fill, stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 };
+        this.elements.push(el);
+        this.selected = this.elements.length - 1;
+        document.getElementById('text-editor').classList.remove('open');
+        this.render();
+    }
+
+    _cancelText() {
+        document.getElementById('text-editor').classList.remove('open');
+    }
+
+    /* ── Image Upload ─────────────────────────────────────── */
+    _loadImage(file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                this._snapshot();
+                const maxW = Math.min(img.width, this.canvas.width * 0.6);
+                const ratio = img.height / img.width;
+                const el = { type: 'image', x: 100, y: 100, w: maxW, h: maxW * ratio, src: ev.target.result, _img: img, opacity: 1, fill: 'transparent', stroke: 'transparent', strokeW: 0 };
+                this.elements.push(el);
+                this.selected = this.elements.length - 1;
+                this.render();
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    /* ── Templates ────────────────────────────────────────── */
+    _loadTemplate(name) {
+        this._snapshot();
+        const cw = this.canvas.width, ch = this.canvas.height;
+        const cx = cw / 2, cy = ch / 2;
+        this.elements = [];
+        this.selected = null;
+
+        const presets = {
+            instagram: () => {
+                this.bgColor = '#0F0F1A';
+                document.getElementById('prop-bg').value = '#0F0F1A';
+                this.elements = [
+                    { type: 'rect', x: cx - 400, y: cy - 120, w: 800, h: 240, fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, opacity: 0.15 },
+                    { type: 'text', x: cx - 300, y: cy - 100, w: 600, h: 120, text: 'YOUR BRAND', fs: 120, ff: 'sans-serif', fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, bold: true, italic: false, opacity: 1 },
+                    { type: 'text', x: cx - 280, y: cy + 60, w: 560, h: 60, text: 'Your tagline goes here', fs: 52, ff: 'sans-serif', fill: 'rgba(255,255,255,0.8)', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 }
+                ];
+            },
+            story: () => {
+                this.canvas.width = 1080; this.canvas.height = 1920;
+                this.bgColor = '#1A0A2E';
+                document.getElementById('prop-bg').value = '#1A0A2E';
+                const sw = 1080, sh = 1920;
+                this.elements = [
+                    { type: 'ellipse', x: sw * 0.1, y: sh * 0.1, w: sw * 0.8, h: sh * 0.25, fill: '#9C27B0', stroke: 'transparent', strokeW: 0, opacity: 0.3 },
+                    { type: 'text', x: 80, y: sh * 0.38, w: sw - 160, h: 180, text: 'STORY', fs: 180, ff: 'sans-serif', fill: '#ffffff', stroke: 'transparent', strokeW: 0, bold: true, italic: false, opacity: 1 },
+                    { type: 'text', x: 80, y: sh * 0.53, w: sw - 160, h: 80, text: 'Share your moment with the world', fs: 60, ff: 'sans-serif', fill: 'rgba(255,255,255,0.7)', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 }
+                ];
+                document.getElementById('canvas-w').value = 1080;
+                document.getElementById('canvas-h').value = 1920;
+                document.getElementById('status-size').textContent = '1080 × 1920';
+            },
+            youtube: () => {
+                this.canvas.width = 1280; this.canvas.height = 720;
+                this.bgColor = '#0D0D0D';
+                document.getElementById('prop-bg').value = '#0D0D0D';
+                this.elements = [
+                    { type: 'rect', x: 0, y: 0, w: 600, h: 720, fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, opacity: 0.08 },
+                    { type: 'text', x: 60, y: 220, w: 700, h: 200, text: 'VIDEO TITLE', fs: 130, ff: 'sans-serif', fill: '#ffffff', stroke: 'transparent', strokeW: 0, bold: true, italic: false, opacity: 1 },
+                    { type: 'text', x: 60, y: 420, w: 700, h: 80, text: 'Ep. 01 • Season 2024', fs: 56, ff: 'sans-serif', fill: '#F5A623', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 }
+                ];
+                document.getElementById('canvas-w').value = 1280;
+                document.getElementById('canvas-h').value = 720;
+                document.getElementById('status-size').textContent = '1280 × 720';
+            },
+            presentation: () => {
+                this.canvas.width = 1920; this.canvas.height = 1080;
+                this.bgColor = '#0A0A0A';
+                document.getElementById('prop-bg').value = '#0A0A0A';
+                this.elements = [
+                    { type: 'rect', x: 0, y: 0, w: 8, h: 1080, fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, opacity: 1 },
+                    { type: 'text', x: 80, y: 320, w: 1200, h: 200, text: 'PRESENTATION TITLE', fs: 140, ff: 'sans-serif', fill: '#ffffff', stroke: 'transparent', strokeW: 0, bold: true, italic: false, opacity: 1 },
+                    { type: 'text', x: 80, y: 520, w: 1000, h: 80, text: 'Your subtitle or tagline here', fs: 60, ff: 'sans-serif', fill: 'rgba(255,255,255,0.6)', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 },
+                    { type: 'text', x: 80, y: 900, w: 600, h: 50, text: 'Your Name  •  2026', fs: 40, ff: 'sans-serif', fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 }
+                ];
+                document.getElementById('canvas-w').value = 1920;
+                document.getElementById('canvas-h').value = 1080;
+                document.getElementById('status-size').textContent = '1920 × 1080';
+            },
+            flyer: () => {
+                this.bgColor = '#fff';
+                document.getElementById('prop-bg').value = '#ffffff';
+                this.elements = [
+                    { type: 'rect', x: 0, y: 0, w: 1080, h: 300, fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, opacity: 1 },
+                    { type: 'text', x: 80, y: 80, w: 920, h: 160, text: 'EVENT NAME', fs: 130, ff: 'sans-serif', fill: '#ffffff', stroke: 'transparent', strokeW: 0, bold: true, italic: false, opacity: 1 },
+                    { type: 'text', x: 80, y: 360, w: 920, h: 80, text: 'Date: January 1, 2026  •  Location: City', fs: 56, ff: 'sans-serif', fill: '#000000', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 },
+                    { type: 'text', x: 80, y: 500, w: 920, h: 300, text: 'Join us for an incredible event. Add your description here. All are welcome!', fs: 48, ff: 'sans-serif', fill: '#333333', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 },
+                    { type: 'rect', x: 80, y: 860, w: 920, h: 100, fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, opacity: 1 },
+                    { type: 'text', x: 80, y: 880, w: 920, h: 80, text: 'Register at: yourwebsite.com', fs: 52, ff: 'sans-serif', fill: '#ffffff', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 }
+                ];
+            },
+            bizcard: () => {
+                this.canvas.width = 1050; this.canvas.height = 600;
+                this.bgColor = '#0A0A0A';
+                document.getElementById('prop-bg').value = '#0A0A0A';
+                this.elements = [
+                    { type: 'rect', x: 0, y: 0, w: 1050, h: 6, fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, opacity: 1 },
+                    { type: 'text', x: 60, y: 120, w: 700, h: 120, text: 'Jane Smith', fs: 100, ff: 'sans-serif', fill: '#ffffff', stroke: 'transparent', strokeW: 0, bold: true, italic: false, opacity: 1 },
+                    { type: 'text', x: 60, y: 260, w: 700, h: 60, text: 'Creative Director', fs: 50, ff: 'sans-serif', fill: '#FF1D6C', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 },
+                    { type: 'text', x: 60, y: 380, w: 700, h: 50, text: '📞 +1 (555) 000-0000', fs: 42, ff: 'sans-serif', fill: 'rgba(255,255,255,0.7)', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 },
+                    { type: 'text', x: 60, y: 450, w: 700, h: 50, text: '✉ jane@company.com', fs: 42, ff: 'sans-serif', fill: 'rgba(255,255,255,0.7)', stroke: 'transparent', strokeW: 0, bold: false, italic: false, opacity: 1 }
+                ];
+                document.getElementById('canvas-w').value = 1050;
+                document.getElementById('canvas-h').value = 600;
+                document.getElementById('status-size').textContent = '1050 × 600';
+            },
+            blank: () => {
+                this.bgColor = '#ffffff';
+                document.getElementById('prop-bg').value = '#ffffff';
+                this.elements = [];
+            }
+        };
+
+        if (presets[name]) presets[name]();
+        this.render();
+    }
+
+    /* ── Layers Panel ─────────────────────────────────────── */
+    _updateLayers() {
+        const list = document.getElementById('layers-list');
+        list.innerHTML = '';
+        [...this.elements].reverse().forEach((el, ri) => {
+            const i = this.elements.length - 1 - ri;
+            const item = document.createElement('div');
+            item.className = 'layer-item' + (i === this.selected ? ' selected' : '');
+            const icon = { rect: '▭', ellipse: '◯', text: 'T', image: '🖼', line: '╱' }[el.type] || '?';
+            const label = el.type === 'text' ? el.text.slice(0, 16) : (el.type.charAt(0).toUpperCase() + el.type.slice(1));
+            item.innerHTML = `<span>${icon}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>`;
+            const del = document.createElement('button');
+            del.className = 'layer-del';
+            del.textContent = '✕';
+            del.onclick = (ev) => { ev.stopPropagation(); this._snapshot(); this.elements.splice(i, 1); if (this.selected === i) this.selected = null; else if (this.selected > i) this.selected--; this.render(); };
+            item.appendChild(del);
+            item.onclick = () => { this.selected = i; this.render(); };
+            list.appendChild(item);
+        });
+    }
+
+    /* ── Properties Panel ─────────────────────────────────── */
+    _updateProps() {
+        const sec = document.getElementById('prop-section');
+        if (this.selected === null || !this.elements[this.selected]) {
+            sec.style.display = 'none';
+            return;
+        }
+        sec.style.display = '';
+        const el = this.elements[this.selected];
+        document.getElementById('prop-fill').value = el.fill && el.fill.startsWith('#') ? el.fill : '#ff1d6c';
+        document.getElementById('prop-stroke').value = el.stroke && el.stroke.startsWith('#') ? el.stroke : '#ffffff';
+        document.getElementById('prop-stroke-w').value = el.strokeW || 0;
+        document.getElementById('prop-x').value = Math.round(el.x);
+        document.getElementById('prop-y').value = Math.round(el.y);
+        document.getElementById('prop-w').value = Math.round(el.w || 0);
+        document.getElementById('prop-h').value = Math.round(el.h || 0);
+        document.getElementById('prop-opacity').value = el.opacity ?? 1;
+        const isText = el.type === 'text';
+        document.getElementById('prop-text-rows').style.display = isText ? '' : 'none';
+        if (isText) {
+            document.getElementById('prop-fontsize').value = el.fs;
+            document.getElementById('prop-font').value = el.ff;
+            document.getElementById('prop-bold').checked = el.bold;
+            document.getElementById('prop-italic').checked = el.italic;
+        }
+    }
+
+    /* ── Property Change Handlers ─────────────────────────── */
+    _bindPropHandlers() {
+        const apply = () => {
+            if (this.selected === null) return;
+            const el = this.elements[this.selected];
+            el.fill = document.getElementById('prop-fill').value;
+            el.stroke = document.getElementById('prop-stroke').value;
+            el.strokeW = parseFloat(document.getElementById('prop-stroke-w').value) || 0;
+            el.x = parseFloat(document.getElementById('prop-x').value) || 0;
+            el.y = parseFloat(document.getElementById('prop-y').value) || 0;
+            el.w = parseFloat(document.getElementById('prop-w').value) || el.w;
+            el.h = parseFloat(document.getElementById('prop-h').value) || el.h;
+            el.opacity = parseFloat(document.getElementById('prop-opacity').value);
+            if (el.type === 'text') {
+                el.fs = parseInt(document.getElementById('prop-fontsize').value) || 48;
+                el.ff = document.getElementById('prop-font').value;
+                el.bold = document.getElementById('prop-bold').checked;
+                el.italic = document.getElementById('prop-italic').checked;
+            }
+            this.render();
+        };
+        ['prop-fill','prop-stroke','prop-stroke-w','prop-x','prop-y','prop-w','prop-h','prop-opacity','prop-fontsize','prop-font','prop-bold','prop-italic'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', apply);
+        });
+
+        document.getElementById('prop-bg').addEventListener('input', (e) => {
+            this.bgColor = e.target.value;
+            this.render();
+        });
+
+        document.getElementById('btn-apply-size').addEventListener('click', () => {
+            const w = parseInt(document.getElementById('canvas-w').value);
+            const h = parseInt(document.getElementById('canvas-h').value);
+            if (w >= 100 && h >= 100) {
+                this._snapshot();
+                this.canvas.width = w;
+                this.canvas.height = h;
+                document.getElementById('status-size').textContent = `${w} × ${h}`;
+                this.render();
+            }
+        });
+    }
+
+    /* ── Keyboard ─────────────────────────────────────────── */
+    _bindKeyboard() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            const key = e.key.toLowerCase();
+            const ctrl = e.ctrlKey || e.metaKey;
+            if (ctrl && key === 'z') { this._undo(); return; }
+            if (ctrl && (key === 'y' || (e.shiftKey && key === 'z'))) { this._redo(); return; }
+            if (key === 'v') this._setTool('select');
+            if (key === 't') this._setTool('text');
+            if (key === 'r') this._setTool('rect');
+            if (key === 'e') this._setTool('ellipse');
+            if (key === 'l') this._setTool('line');
+            if (key === 'i') document.getElementById('img-file-input').click();
+            if ((key === 'delete' || key === 'backspace') && this.selected !== null) {
+                this._snapshot();
+                this.elements.splice(this.selected, 1);
+                this.selected = null;
+                this.render();
+            }
+            // Arrow key nudge
+            if (this.selected !== null && ['arrowleft','arrowright','arrowup','arrowdown'].includes(key)) {
+                const el = this.elements[this.selected];
+                const step = e.shiftKey ? 10 : 1;
+                if (key === 'arrowleft') el.x -= step;
+                if (key === 'arrowright') el.x += step;
+                if (key === 'arrowup') el.y -= step;
+                if (key === 'arrowdown') el.y += step;
+                this.render();
+                e.preventDefault();
+            }
+        });
+    }
+
+    /* ── Tool Selection ───────────────────────────────────── */
+    _setTool(name) {
+        this.tool = name;
+        document.querySelectorAll('.tool').forEach(t => t.classList.remove('active'));
+        const el = document.getElementById('tool-' + name);
+        if (el) el.classList.add('active');
+        document.getElementById('status-tool').textContent = 'Tool: ' + name.charAt(0).toUpperCase() + name.slice(1);
+        const cursors = { select: 'default', text: 'text', rect: 'crosshair', ellipse: 'crosshair', line: 'crosshair' };
+        this.canvas.style.cursor = cursors[name] || 'default';
+    }
+
+    /* ── Download ─────────────────────────────────────────── */
+    _download() {
+        // Temporarily deselect to render without selection handles
+        const sel = this.selected;
+        this.selected = null;
+        this.render();
+        const link = document.createElement('a');
+        link.download = (document.getElementById('canvas-name').value || 'canvas-studio') + '.png';
+        link.href = this.canvas.toDataURL('image/png');
+        link.click();
+        this.selected = sel;
+        this.render();
+    }
+
+    /* ── URL Hash Template ────────────────────────────────── */
+    _checkHash() {
+        const hash = window.location.hash.slice(1);
+        if (hash) this._loadTemplate(hash);
+    }
+
+    /* ── Templates UI ─────────────────────────────────────── */
+    _initTemplatesUI() {
+        const templates = [
+            { id: 'instagram', emoji: '📱', label: 'Instagram Post', dim: '1080×1080', bg: '#0F0F1A' },
+            { id: 'story', emoji: '🎭', label: 'Instagram Story', dim: '1080×1920', bg: '#1A0A2E' },
+            { id: 'youtube', emoji: '🎬', label: 'YouTube Thumbnail', dim: '1280×720', bg: '#0D0D0D' },
+            { id: 'presentation', emoji: '📊', label: 'Presentation', dim: '1920×1080', bg: '#0A0A0A' },
+            { id: 'flyer', emoji: '📄', label: 'Flyer', dim: '1080×1080', bg: '#FF1D6C' },
+            { id: 'bizcard', emoji: '💳', label: 'Business Card', dim: '1050×600', bg: '#0A0A0A' },
+            { id: 'blank', emoji: '⬜', label: 'Blank Canvas', dim: '1080×1080', bg: '#fff' }
+        ];
+        const grid = document.getElementById('tpl-grid');
+        templates.forEach(t => {
+            const card = document.createElement('div');
+            card.className = 'tpl-card';
+            card.innerHTML = `<div class="tpl-preview" style="background:${t.bg}">${t.emoji}</div><div class="tpl-label">${t.label}<span>${t.dim}</span></div>`;
+            card.addEventListener('click', () => {
+                this._loadTemplate(t.id);
+                document.getElementById('templates-overlay').classList.remove('open');
+            });
+            grid.appendChild(card);
+        });
+    }
+
+    /* ── Zoom Controls ────────────────────────────────────── */
+    _initZoomControls() {
+        document.getElementById('canvas-area').addEventListener('wheel', (e) => {
+            if (!e.ctrlKey && !e.metaKey) return;
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.05 : 0.05;
+            this.zoom = Math.max(0.1, Math.min(3, this.zoom + delta));
+            this._applyZoom();
+        }, { passive: false });
+    }
+
+    /* ── Init UI ──────────────────────────────────────────── */
+    _initUI() {
+        // Scale canvas for default zoom
+        const area = document.getElementById('canvas-area');
+        const availH = window.innerHeight - 52 - 28;
+        const availW = area.offsetWidth || window.innerWidth - 56 - 240;
+        this.zoom = Math.min((availW - 80) / this.canvas.width, (availH - 80) / this.canvas.height, 1);
+        this.zoom = Math.max(0.1, this.zoom);
+
+        this._initTemplatesUI();
+        this._initZoomControls();
+    }
+
+    /* ── Bind All Events ──────────────────────────────────── */
+    _bindEvents() {
+        const c = this.canvas;
+        c.addEventListener('mousedown', e => this._onMouseDown(e));
+        c.addEventListener('mousemove', e => this._onMouseMove(e));
+        c.addEventListener('mouseup', e => this._onMouseUp(e));
+        c.addEventListener('mouseleave', e => { if (this.drawStart) this._onMouseUp(e); });
+
+        // Touch support
+        c.addEventListener('touchstart', e => { e.preventDefault(); this._onMouseDown(e); }, { passive: false });
+        c.addEventListener('touchmove', e => { e.preventDefault(); this._onMouseMove(e); }, { passive: false });
+        c.addEventListener('touchend', e => { e.preventDefault(); this._onMouseUp(e); }, { passive: false });
+
+        // Tool buttons
+        ['select','text','rect','ellipse','line'].forEach(t => {
+            document.getElementById('tool-' + t).addEventListener('click', () => this._setTool(t));
+        });
+
+        document.getElementById('tool-image').addEventListener('click', () => document.getElementById('img-file-input').click());
+
+        document.getElementById('img-file-input').addEventListener('change', (e) => {
+            if (e.target.files[0]) this._loadImage(e.target.files[0]);
+            e.target.value = '';
+        });
+
+        document.getElementById('bg-color-input').addEventListener('input', (e) => {
+            this.bgColor = e.target.value;
+            document.getElementById('prop-bg').value = e.target.value;
+            this.render();
+        });
+
+        // Top bar buttons
+        document.getElementById('btn-undo').addEventListener('click', () => this._undo());
+        document.getElementById('btn-redo').addEventListener('click', () => this._redo());
+        document.getElementById('btn-download').addEventListener('click', () => this._download());
+        document.getElementById('btn-templates').addEventListener('click', () => document.getElementById('templates-overlay').classList.add('open'));
+        document.getElementById('btn-clear').addEventListener('click', () => { if (confirm('Clear all elements?')) { this._snapshot(); this.elements = []; this.selected = null; this.render(); } });
+        document.getElementById('btn-size').addEventListener('click', () => document.getElementById('rightpanel').scrollTo({ top: document.querySelector('.panel-section:nth-child(2)').offsetTop, behavior: 'smooth' }));
+
+        // Templates modal
+        document.getElementById('tpl-close').addEventListener('click', () => document.getElementById('templates-overlay').classList.remove('open'));
+        document.getElementById('templates-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('templates-overlay')) document.getElementById('templates-overlay').classList.remove('open'); });
+
+        // Text editor
+        document.getElementById('te-confirm').addEventListener('click', () => this._confirmText());
+        document.getElementById('te-cancel').addEventListener('click', () => this._cancelText());
+        document.getElementById('te-text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._confirmText(); } });
+
+        this._bindPropHandlers();
+        this._bindKeyboard();
+    }
+}
+
+// Boot
+window.addEventListener('DOMContentLoaded', () => { window.studio = new CanvasStudio(); });
+</script>
+</body>
+</html>
